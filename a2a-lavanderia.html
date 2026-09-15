@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>A2A · Registro de Lavandería</title>
+<style>
+  :root{
+    --bg: #F5F6F3;
+    --surface: #FFFFFF;
+    --ink: #23302E;
+    --ink-soft: #5E6B67;
+    --line: #DDE3DE;
+    --dirty: #8B6F47;
+    --dirty-bg: #F4EEE4;
+    --clean: #2E6E6A;
+    --clean-bg: #E7F1F0;
+    --danger: #A5453A;
+    --radius: 14px;
+  }
+  *{ box-sizing: border-box; }
+  html, body{ margin:0; padding:0; }
+  body{
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Inter", "Work Sans", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 20px 16px 60px;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+  .num{ font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+
+  header{ margin-bottom: 20px; }
+  header .eyebrow{ color: var(--ink-soft); font-size: 13px; letter-spacing: 0.02em; margin: 0 0 2px; }
+  header h1{ font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  header p.sub{ color: var(--ink-soft); font-size: 14px; margin: 6px 0 0; line-height: 1.4; }
+
+  .tabs{ display:flex; gap: 6px; margin-bottom: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
+  .tab{ flex:1; text-align:center; padding: 9px 6px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--ink-soft); cursor:pointer; user-select:none; transition: background .15s, color .15s; }
+  .tab.active{ background: var(--ink); color: #fff; }
+
+  .card{ background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; }
+  .card h2{ font-size: 15px; margin: 0 0 14px; font-weight: 700; }
+
+  label{ display:block; font-size: 13px; color: var(--ink-soft); margin: 0 0 6px; }
+  select, input[type=date]{
+    width:100%; padding: 12px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); font-size: 15px; color: var(--ink); margin-bottom: 14px;
+  }
+  .weight-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .weight-box{ border-radius: 12px; padding: 12px; }
+  .weight-box.dirty{ background: var(--dirty-bg); }
+  .weight-box.clean{ background: var(--clean-bg); }
+  .weight-box label{ font-weight: 700; margin-bottom: 8px; }
+  .weight-box.dirty label{ color: var(--dirty); }
+  .weight-box.clean label{ color: var(--clean); }
+  .weight-input-row{ display:flex; align-items:baseline; gap: 6px; }
+  .weight-input-row input{
+    width: 100%; border: none; background: transparent; font-size: 26px; font-weight: 700;
+    padding: 2px 0; color: var(--ink); outline: none;
+  }
+  .weight-input-row span{ font-size: 13px; color: var(--ink-soft); }
+
+  button.primary{
+    width:100%; padding: 14px; border-radius: 10px; border: none; background: var(--ink); color:#fff;
+    font-size: 15px; font-weight: 700; cursor:pointer;
+  }
+  button.primary:active{ opacity: 0.85; }
+  button.primary:disabled{ background: #B7BDB9; cursor:not-allowed; }
+
+  .msg{ font-size: 13px; margin-top: 10px; padding: 10px 12px; border-radius: 8px; }
+  .msg.ok{ background: var(--clean-bg); color: var(--clean); }
+  .msg.err{ background: #FBEAE7; color: var(--danger); }
+
+  .filter-row{ display:flex; gap: 10px; margin-bottom: 14px; }
+  .filter-row select{ margin-bottom: 0; }
+
+  table{ width:100%; border-collapse: collapse; font-size: 13.5px; }
+  th{ text-align:left; color: var(--ink-soft); font-weight: 600; font-size: 12px; padding: 6px 6px; border-bottom: 1px solid var(--line); }
+  td{ padding: 9px 6px; border-bottom: 1px solid var(--line); }
+  tr:last-child td{ border-bottom: none; }
+  td.right, th.right{ text-align: right; }
+  .diff-pos{ color: var(--dirty); }
+  .diff-neg{ color: var(--clean); }
+  .del-btn{ background:none; border:none; color: var(--ink-soft); font-size: 16px; cursor:pointer; padding: 2px 6px; line-height:1; }
+  .del-btn:hover{ color: var(--danger); }
+
+  .empty{ text-align:center; color: var(--ink-soft); font-size: 14px; padding: 30px 10px; }
+
+  .compare-chart{ display:flex; align-items:flex-end; gap: 10px; height: 140px; padding: 10px 4px 0; overflow-x:auto; }
+  .compare-col{ flex: 0 0 auto; display:flex; flex-direction:column; align-items:center; gap:4px; width: 46px; }
+  .bars{ display:flex; align-items:flex-end; gap:3px; height: 100px; }
+  .bar{ width: 16px; border-radius: 4px 4px 0 0; }
+  .bar.dirty{ background: var(--dirty); }
+  .bar.clean{ background: var(--clean); }
+  .compare-date{ font-size: 10px; color: var(--ink-soft); text-align:center; line-height:1.2; }
+  .legend{ display:flex; gap: 16px; font-size: 12px; color: var(--ink-soft); margin-bottom: 8px; }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .dot.dirty{ background: var(--dirty); }
+  .dot.clean{ background: var(--clean); }
+
+  .summary-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+  .summary-box{ background: var(--bg); border-radius: 10px; padding: 12px; }
+  .summary-box .label{ font-size: 12px; color: var(--ink-soft); margin-bottom: 4px; }
+  .summary-box .value{ font-size: 20px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">A2A · Operaciones</p>
+  <h1>Registro de Lavandería</h1>
+  <p class="sub">Anota el peso de la ropa sucia y limpia por propiedad y fecha.</p>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="registrar">Registrar</div>
+  <div class="tab" data-tab="historial">Historial</div>
+  <div class="tab" data-tab="comparar">Comparar</div>
+</div>
+
+<!-- REGISTRAR -->
+<div id="tab-registrar" class="tab-content">
+  <div class="card">
+    <h2>Nuevo registro</h2>
+
+    <label for="f-property">Propiedad</label>
+    <select id="f-property"></select>
+
+    <label for="f-date">Fecha</label>
+    <input type="date" id="f-date">
+
+    <div class="weight-grid">
+      <div class="weight-box dirty">
+        <label>Ropa sucia</label>
+        <div class="weight-input-row">
+          <input type="number" inputmode="decimal" step="0.1" min="0" id="f-dirty" placeholder="0.0">
+          <span class="num">kg</span>
+        </div>
+      </div>
+      <div class="weight-box clean">
+        <label>Ropa limpia</label>
+        <div class="weight-input-row">
+          <input type="number" inputmode="decimal" step="0.1" min="0" id="f-clean" placeholder="0.0">
+          <span class="num">kg</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="primary" id="save-btn">Guardar registro</button>
+    <div id="save-msg"></div>
+  </div>
+</div>
+
+<!-- HISTORIAL -->
+<div id="tab-historial" class="tab-content" style="display:none;">
+  <div class="card">
+    <h2>Historial completo</h2>
+    <div class="filter-row">
+      <select id="h-filter"></select>
+      <button class="primary" id="export-btn" style="flex:0 0 auto; width:auto; padding:12px 16px; font-size:13px;">Exportar CSV</button>
+    </div>
+    <div id="history-table-wrap"></div>
+  </div>
+</div>
+
+<!-- COMPARAR -->
+<div id="tab-comparar" class="tab-content" style="display:none;">
+  <div class="card">
+    <h2>Comparar por propiedad</h2>
+    <div class="filter-row">
+      <select id="c-property"></select>
+    </div>
+    <div id="compare-summary"></div>
+    <div class="legend">
+      <span><i class="dot dirty"></i>Sucia</span>
+      <span><i class="dot clean"></i>Limpia</span>
+    </div>
+    <div id="compare-chart-wrap"></div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script>
+// Proyecto Firebase compartido con la app de Inventario A2A (nodo separado: /lavanderia)
+const firebaseConfig = {
+  apiKey: "AIzaSyDC0ylsLcEnib48RvqMYwSU65-hW6GtDl8",
+  authDomain: "inventario-a2a.firebaseapp.com",
+  databaseURL: "https://inventario-a2a-default-rtdb.firebaseio.com",
+  projectId: "inventario-a2a",
+  storageBucket: "inventario-a2a.firebasestorage.app",
+  messagingSenderId: "162074660763",
+  appId: "1:162074660763:web:98a0701f98246d1f641b3e"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const lavanderiaRef = db.ref("lavanderia");
+
+const PROPERTIES = [
+  "Casa Blanca 1","Casa Blanca 2","Casa Blanca 3","Casa Blanca 4","Casa Blanca 5","Casa Blanca 6","Casa Blanca 7",
+  "Casa Amarilla","Casa Naranja",
+  "Casa Finca 1","Casa Finca 2","Casa Finca 3","Casa Finca 4",
+  "Casa Manila","Pacande","Otra (escribir)"
+];
+
+const STORAGE_KEY = "a2a-laundry-entries";
+let entries = [];
+let storageReady = false;
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function todayStr(){ const d = new Date(); return d.toISOString().slice(0,10); }
+function fmtDate(iso){
+  const [y,m,d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+function fmtKg(n){
+  if(n === null || n === undefined || isNaN(n)) return "—";
+  return Number(n).toFixed(1);
+}
+
+// ---------- storage (Firebase Realtime Database: syncs across every device live) ----------
+function watchEntries(onFirstLoad){
+  let firstLoadDone = false;
+  lavanderiaRef.on("value", (snapshot) => {
+    const raw = snapshot.val() || {};
+    entries = Object.keys(raw).map(key => ({ id: key, ...raw[key] }));
+    storageReady = true;
+    renderHistory();
+    renderCompare();
+    if(!firstLoadDone){ firstLoadDone = true; if(onFirstLoad) onFirstLoad(); }
+  }, (err) => {
+    console.error("Firebase read error", err);
+    document.getElementById("history-table-wrap").innerHTML =
+      `<div class="msg err">No se pudo conectar a la base de datos. Revisa tu conexión a internet.</div>`;
+  });
+}
+
+// ---------- populate selects ----------
+function fillPropertySelects(){
+  const opts = PROPERTIES.map(p => `<option value="${p}">${p}</option>`).join("");
+  document.getElementById("f-property").innerHTML = opts;
+
+  const allOpt = `<option value="__all">Todas las propiedades</option>`;
+  document.getElementById("h-filter").innerHTML = allOpt + opts;
+  document.getElementById("c-property").innerHTML = opts;
+}
+
+// ---------- tabs ----------
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    document.querySelectorAll(".tab-content").forEach(c => c.style.display = "none");
+    document.getElementById("tab-" + tab.dataset.tab).style.display = "block";
+    if(tab.dataset.tab === "historial") renderHistory();
+    if(tab.dataset.tab === "comparar") renderCompare();
+  });
+});
+
+// ---------- save ----------
+document.getElementById("save-btn").addEventListener("click", async () => {
+  const property = document.getElementById("f-property").value;
+  const date = document.getElementById("f-date").value;
+  const dirtyRaw = document.getElementById("f-dirty").value;
+  const cleanRaw = document.getElementById("f-clean").value;
+  const msgEl = document.getElementById("save-msg");
+
+  if(!date){
+    msgEl.innerHTML = `<div class="msg err">Selecciona una fecha.</div>`;
+    return;
+  }
+  if(dirtyRaw === "" && cleanRaw === ""){
+    msgEl.innerHTML = `<div class="msg err">Ingresa al menos un peso (sucia o limpia).</div>`;
+    return;
+  }
+
+  const entry = {
+    property,
+    date,
+    dirty: dirtyRaw === "" ? null : parseFloat(dirtyRaw),
+    clean: cleanRaw === "" ? null : parseFloat(cleanRaw),
+    createdAt: Date.now()
+  };
+
+  const btn = document.getElementById("save-btn");
+  btn.disabled = true;
+  try{
+    await lavanderiaRef.push(entry);
+    msgEl.innerHTML = `<div class="msg ok">Registro guardado: ${property} · ${fmtDate(date)}</div>`;
+    document.getElementById("f-dirty").value = "";
+    document.getElementById("f-clean").value = "";
+  }catch(e){
+    console.error(e);
+    msgEl.innerHTML = `<div class="msg err">No se pudo guardar. Revisa tu conexión e intenta de nuevo.</div>`;
+  }
+  btn.disabled = false;
+});
+
+// ---------- delete ----------
+async function deleteEntry(id){
+  try{
+    await lavanderiaRef.child(id).remove();
+  }catch(e){
+    console.error(e);
+    alert("No se pudo eliminar el registro. Intenta de nuevo.");
+  }
+}
+
+// ---------- history ----------
+document.getElementById("h-filter").addEventListener("change", renderHistory);
+
+function renderHistory(){
+  const filter = document.getElementById("h-filter").value;
+  const wrap = document.getElementById("history-table-wrap");
+  let list = entries.slice().sort((a,b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
+  if(filter && filter !== "__all"){
+    list = list.filter(e => e.property === filter);
+  }
+
+  if(list.length === 0){
+    wrap.innerHTML = `<div class="empty">Sin registros todavía. Agrega el primero en la pestaña Registrar.</div>`;
+    return;
+  }
+
+  const rows = list.map(e => {
+    let diffCell = "—";
+    if(e.dirty !== null && e.clean !== null){
+      const diff = e.dirty - e.clean;
+      const cls = diff > 0 ? "diff-pos" : (diff < 0 ? "diff-neg" : "");
+      const sign = diff > 0 ? "+" : "";
+      diffCell = `<span class="${cls} num">${sign}${diff.toFixed(1)} kg</span>`;
+    }
+    return `<tr>
+      <td>${fmtDate(e.date)}</td>
+      <td>${e.property}</td>
+      <td class="right num">${fmtKg(e.dirty)}</td>
+      <td class="right num">${fmtKg(e.clean)}</td>
+      <td class="right">${diffCell}</td>
+      <td class="right"><button class="del-btn" data-id="${e.id}" title="Eliminar">✕</button></td>
+    </tr>`;
+  }).join("");
+
+  wrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th><th>Propiedad</th><th class="right">Sucia</th><th class="right">Limpia</th><th class="right">Dif.</th><th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  wrap.querySelectorAll(".del-btn").forEach(btn => {
+    btn.addEventListener("click", () => deleteEntry(btn.dataset.id));
+  });
+}
+
+// ---------- compare ----------
+document.getElementById("c-property").addEventListener("change", renderCompare);
+
+function renderCompare(){
+  const property = document.getElementById("c-property").value;
+  const summaryEl = document.getElementById("compare-summary");
+  const chartWrap = document.getElementById("compare-chart-wrap");
+
+  const list = entries
+    .filter(e => e.property === property)
+    .slice()
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  if(list.length === 0){
+    summaryEl.innerHTML = "";
+    chartWrap.innerHTML = `<div class="empty">Sin registros para esta propiedad todavía.</div>`;
+    return;
+  }
+
+  const last = list[list.length - 1];
+  const withBoth = list.filter(e => e.dirty !== null && e.clean !== null);
+  const avgDiff = withBoth.length
+    ? withBoth.reduce((s,e) => s + (e.dirty - e.clean), 0) / withBoth.length
+    : null;
+
+  summaryEl.innerHTML = `
+    <div class="summary-grid">
+      <div class="summary-box">
+        <div class="label">Último registro</div>
+        <div class="value num">${fmtDate(last.date)}</div>
+      </div>
+      <div class="summary-box">
+        <div class="label">Diferencia promedio (sucia − limpia)</div>
+        <div class="value num">${avgDiff === null ? "—" : (avgDiff > 0 ? "+" : "") + avgDiff.toFixed(1) + " kg"}</div>
+      </div>
+    </div>
+  `;
+
+  const maxVal = Math.max(1, ...list.flatMap(e => [e.dirty || 0, e.clean || 0]));
+  const cols = list.map(e => {
+    const dirtyH = e.dirty !== null ? Math.max(2, (e.dirty / maxVal) * 100) : 0;
+    const cleanH = e.clean !== null ? Math.max(2, (e.clean / maxVal) * 100) : 0;
+    return `
+      <div class="compare-col">
+        <div class="bars">
+          <div class="bar dirty" style="height:${dirtyH}px" title="Sucia: ${fmtKg(e.dirty)} kg"></div>
+          <div class="bar clean" style="height:${cleanH}px" title="Limpia: ${fmtKg(e.clean)} kg"></div>
+        </div>
+        <div class="compare-date">${fmtDate(e.date).slice(0,5)}</div>
+      </div>
+    `;
+  }).join("");
+
+  chartWrap.innerHTML = `<div class="compare-chart">${cols}</div>`;
+}
+
+// ---------- export ----------
+document.getElementById("export-btn").addEventListener("click", () => {
+  if(entries.length === 0){ return; }
+  const list = entries.slice().sort((a,b) => (a.date + a.createdAt).localeCompare(b.date + b.createdAt));
+  const header = "Fecha,Propiedad,Sucia (kg),Limpia (kg),Diferencia (kg)\n";
+  const rows = list.map(e => {
+    const diff = (e.dirty !== null && e.clean !== null) ? (e.dirty - e.clean).toFixed(1) : "";
+    return [e.date, e.property, e.dirty ?? "", e.clean ?? "", diff].join(",");
+  }).join("\n");
+  const blob = new Blob([header + rows], {type: "text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `a2a-lavanderia-${todayStr()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ---------- init ----------
+(function init(){
+  fillPropertySelects();
+  document.getElementById("f-date").value = todayStr();
+  watchEntries();
+})();
+</script>
+</body>
+</html>
