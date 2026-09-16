@@ -61,6 +61,9 @@
     padding: 2px 0; color: var(--ink); outline: none;
   }
   .weight-input-row span{ font-size: 13px; color: var(--ink-soft); }
+  .checkbox-row{ display:flex; align-items:flex-start; gap: 7px; margin-top: 10px; font-size: 12.5px; font-weight: 400; color: var(--dirty); cursor:pointer; }
+  .checkbox-row input{ margin-top: 2px; flex: 0 0 auto; }
+  .checkbox-row span{ line-height: 1.3; }
 
   button.primary{
     width:100%; padding: 14px; border-radius: 10px; border: none; background: var(--ink); color:#fff;
@@ -105,6 +108,17 @@
   .summary-box{ background: var(--bg); border-radius: 10px; padding: 12px; }
   .summary-box .label{ font-size: 12px; color: var(--ink-soft); margin-bottom: 4px; }
   .summary-box .value{ font-size: 20px; font-weight: 700; }
+
+  .day-block{ margin-bottom: 18px; }
+  .day-block:last-child{ margin-bottom: 0; }
+  .day-title{ font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 8px; display:flex; justify-content:space-between; align-items:baseline; }
+  .day-title .count{ font-weight: 400; color: var(--ink-soft); font-size: 12px; }
+  .tanda-card{ background: var(--bg); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .tanda-card:last-child{ margin-bottom: 0; }
+  .tanda-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 4px; }
+  .tanda-head .name{ font-size: 13px; font-weight: 700; color: var(--dirty); }
+  .tanda-head .total{ font-size: 15px; font-weight: 700; }
+  .tanda-props{ font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -119,6 +133,7 @@
   <div class="tab active" data-tab="registrar">Registrar</div>
   <div class="tab" data-tab="historial">Historial</div>
   <div class="tab" data-tab="comparar">Comparar</div>
+  <div class="tab" data-tab="tandas">Tandas</div>
 </div>
 
 <!-- REGISTRAR -->
@@ -139,6 +154,10 @@
           <input type="number" inputmode="decimal" step="0.1" min="0" id="f-dirty" placeholder="0.0">
           <span class="num">kg</span>
         </div>
+        <label class="checkbox-row" for="f-samebatch">
+          <input type="checkbox" id="f-samebatch">
+          <span>Misma tanda que el registro anterior de hoy</span>
+        </label>
       </div>
       <div class="weight-box clean">
         <label>Ropa limpia</label>
@@ -182,6 +201,17 @@
   </div>
 </div>
 
+<!-- TANDAS -->
+<div id="tab-tandas" class="tab-content" style="display:none;">
+  <div class="card">
+    <h2>Tandas de lavado por día</h2>
+    <p style="font-size:13px; color:var(--ink-soft); margin-top:-8px; margin-bottom:14px; line-height:1.4;">
+      Cada tanda agrupa los registros marcados como "misma tanda que el anterior" dentro de un mismo día.
+    </p>
+    <div id="tandas-wrap"></div>
+  </div>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script>
@@ -203,11 +233,7 @@ const PROPERTIES = [
   "Casa Blanca 1","Casa Blanca 2","Casa Blanca 3","Casa Blanca 4","Casa Blanca 5","Casa Blanca 6","Casa Blanca 7",
   "Casa Amarilla","Casa Naranja",
   "Casa Finca 1","Casa Finca 2","Casa Finca 3","Casa Finca 4",
-  "Casa Manila","Pacande",
-  "Casa 11-1","Casa 11-2","Casa 11-3","Casa 11-4","Casa 11-5","Casa 11-loft",
-  "Casa 12-1","Casa 12-201","Casa 12-202",
-  "Gaudí 208","Gaudí 505","Gaudí 701","Gaudí 702","Gaudí 703",
-  "Otra (escribir)"
+  "Casa Manila","Pacande","Otra (escribir)"
 ];
 
 const STORAGE_KEY = "a2a-laundry-entries";
@@ -225,6 +251,40 @@ function fmtKg(n){
   return Number(n).toFixed(1);
 }
 
+// Agrupa por día los registros con peso de ropa sucia y les asigna número de tanda.
+// Regla: el primer registro de dirty del día siempre abre la tanda 1.
+// Los siguientes suman a la tanda actual si "sameBatch" está marcado; si no, abren una tanda nueva.
+function computeTandasByDay(){
+  const withDirty = entries.filter(e => e.dirty !== null && e.dirty !== undefined);
+  const byDay = {};
+  withDirty.forEach(e => {
+    if(!byDay[e.date]) byDay[e.date] = [];
+    byDay[e.date].push(e);
+  });
+
+  const tandaByEntryId = {};
+  const daySummaries = {};
+
+  Object.keys(byDay).forEach(date => {
+    const dayEntries = byDay[date].slice().sort((a,b) => a.createdAt - b.createdAt);
+    let tandaNum = 0;
+    let tandas = [];
+    dayEntries.forEach((e, i) => {
+      if(i === 0 || !e.sameBatch){
+        tandaNum += 1;
+        tandas.push({ num: tandaNum, total: 0, items: [] });
+      }
+      const current = tandas[tandas.length - 1];
+      current.total += e.dirty;
+      current.items.push(e);
+      tandaByEntryId[e.id] = tandaNum;
+    });
+    daySummaries[date] = tandas;
+  });
+
+  return { tandaByEntryId, daySummaries };
+}
+
 // ---------- storage (Firebase Realtime Database: syncs across every device live) ----------
 function watchEntries(onFirstLoad){
   let firstLoadDone = false;
@@ -234,6 +294,7 @@ function watchEntries(onFirstLoad){
     storageReady = true;
     renderHistory();
     renderCompare();
+    renderTandas();
     if(!firstLoadDone){ firstLoadDone = true; if(onFirstLoad) onFirstLoad(); }
   }, (err) => {
     console.error("Firebase read error", err);
@@ -261,6 +322,7 @@ document.querySelectorAll(".tab").forEach(tab => {
     document.getElementById("tab-" + tab.dataset.tab).style.display = "block";
     if(tab.dataset.tab === "historial") renderHistory();
     if(tab.dataset.tab === "comparar") renderCompare();
+    if(tab.dataset.tab === "tandas") renderTandas();
   });
 });
 
@@ -286,6 +348,7 @@ document.getElementById("save-btn").addEventListener("click", async () => {
     date,
     dirty: dirtyRaw === "" ? null : parseFloat(dirtyRaw),
     clean: cleanRaw === "" ? null : parseFloat(cleanRaw),
+    sameBatch: document.getElementById("f-samebatch").checked,
     createdAt: Date.now()
   };
 
@@ -296,6 +359,7 @@ document.getElementById("save-btn").addEventListener("click", async () => {
     msgEl.innerHTML = `<div class="msg ok">Registro guardado: ${property} · ${fmtDate(date)}</div>`;
     document.getElementById("f-dirty").value = "";
     document.getElementById("f-clean").value = "";
+    document.getElementById("f-samebatch").checked = false;
   }catch(e){
     console.error(e);
     msgEl.innerHTML = `<div class="msg err">No se pudo guardar. Revisa tu conexión e intenta de nuevo.</div>`;
@@ -329,6 +393,8 @@ function renderHistory(){
     return;
   }
 
+  const { tandaByEntryId } = computeTandasByDay();
+
   const rows = list.map(e => {
     let diffCell = "—";
     if(e.dirty !== null && e.clean !== null){
@@ -337,11 +403,13 @@ function renderHistory(){
       const sign = diff > 0 ? "+" : "";
       diffCell = `<span class="${cls} num">${sign}${diff.toFixed(1)} kg</span>`;
     }
+    const tandaCell = tandaByEntryId[e.id] ? `T${tandaByEntryId[e.id]}` : "—";
     return `<tr>
       <td>${fmtDate(e.date)}</td>
       <td>${e.property}</td>
       <td class="right num">${fmtKg(e.dirty)}</td>
       <td class="right num">${fmtKg(e.clean)}</td>
+      <td class="right num">${tandaCell}</td>
       <td class="right">${diffCell}</td>
       <td class="right"><button class="del-btn" data-id="${e.id}" title="Eliminar">✕</button></td>
     </tr>`;
@@ -351,7 +419,7 @@ function renderHistory(){
     <table>
       <thead>
         <tr>
-          <th>Fecha</th><th>Propiedad</th><th class="right">Sucia</th><th class="right">Limpia</th><th class="right">Dif.</th><th></th>
+          <th>Fecha</th><th>Propiedad</th><th class="right">Sucia</th><th class="right">Limpia</th><th class="right">Tanda</th><th class="right">Dif.</th><th></th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -419,14 +487,53 @@ function renderCompare(){
   chartWrap.innerHTML = `<div class="compare-chart">${cols}</div>`;
 }
 
+// ---------- tandas ----------
+function renderTandas(){
+  const wrap = document.getElementById("tandas-wrap");
+  const { daySummaries } = computeTandasByDay();
+  const dates = Object.keys(daySummaries).sort().reverse();
+
+  if(dates.length === 0){
+    wrap.innerHTML = `<div class="empty">Sin registros de ropa sucia todavía.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = dates.map(date => {
+    const tandas = daySummaries[date];
+    const tandaCards = tandas.map(t => {
+      const props = t.items.map(it => `${it.property} (${fmtKg(it.dirty)} kg)`).join(", ");
+      return `
+        <div class="tanda-card">
+          <div class="tanda-head">
+            <span class="name">Tanda ${t.num}</span>
+            <span class="total num">${t.total.toFixed(1)} kg</span>
+          </div>
+          <div class="tanda-props">${props}</div>
+        </div>
+      `;
+    }).join("");
+    return `
+      <div class="day-block">
+        <div class="day-title">
+          <span>${fmtDate(date)}</span>
+          <span class="count">${tandas.length} tanda${tandas.length === 1 ? "" : "s"}</span>
+        </div>
+        ${tandaCards}
+      </div>
+    `;
+  }).join("");
+}
+
 // ---------- export ----------
 document.getElementById("export-btn").addEventListener("click", () => {
   if(entries.length === 0){ return; }
+  const { tandaByEntryId } = computeTandasByDay();
   const list = entries.slice().sort((a,b) => (a.date + a.createdAt).localeCompare(b.date + b.createdAt));
-  const header = "Fecha,Propiedad,Sucia (kg),Limpia (kg),Diferencia (kg)\n";
+  const header = "Fecha,Propiedad,Sucia (kg),Limpia (kg),Tanda,Diferencia (kg)\n";
   const rows = list.map(e => {
     const diff = (e.dirty !== null && e.clean !== null) ? (e.dirty - e.clean).toFixed(1) : "";
-    return [e.date, e.property, e.dirty ?? "", e.clean ?? "", diff].join(",");
+    const tanda = tandaByEntryId[e.id] ? `T${tandaByEntryId[e.id]}` : "";
+    return [e.date, e.property, e.dirty ?? "", e.clean ?? "", tanda, diff].join(",");
   }).join("\n");
   const blob = new Blob([header + rows], {type: "text/csv;charset=utf-8;"});
   const url = URL.createObjectURL(blob);
